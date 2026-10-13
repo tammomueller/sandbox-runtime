@@ -1061,3 +1061,19 @@ Users should be aware of potential risks that come from allowing broad domains l
 **Future improvements:**
 
 - **Proxychains support**: Add support for `proxychains` with `LD_PRELOAD` on Linux to intercept network calls at a lower level, making bypass more difficult
+
+
+### Fork branch: caller-supervised Linux services
+
+This branch adds optional initPath and infoFd parameters to
+wrapCommandWithSandboxLinux in sandbox/linux-sandbox-utils.
+A trusted init such as /usr/bin/tini runs as sandbox PID 1; Bubblewrap writes
+its outer PID to the caller's inherited infoFd, then closes that descriptor.
+The caller must forward signals to that reported init and keep outer Bubblewrap
+alive until the workload exits. PID isolation and the seccomp helper are retained.
+
+This enables a service adapter using inherited networking. It does not repair
+signal forwarding in the stock CLI or the network proxy relay shell.
+The focused test needs Linux, Tini, Bubblewrap and the built seccomp helper:
+
+    bun test test/sandbox/linux-supervised-init.test.ts

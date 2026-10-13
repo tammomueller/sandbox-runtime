@@ -45,6 +45,12 @@ export interface LinuxNetworkBridgeContext {
 
 export interface LinuxSandboxParams {
   command: string
+  /** Optional trusted init (for example tini) to run as sandbox PID 1.
+   * The caller owns signal delivery and must keep the outer bwrap alive. */
+  initPath?: string
+  /** Inherited descriptor on which bwrap reports its child PID; consumed
+   * and closed by bwrap, never passed to the workload. */
+  infoFd?: number
   /** Attribution key encoded for violation correlation; defaults to
    *  `command`. See MacOSSandboxParams.commandId. */
   commandId?: string
@@ -3283,6 +3289,8 @@ export async function wrapCommandWithSandboxLinux(
 ): Promise<string> {
   const {
     command,
+    initPath,
+    infoFd,
     commandId,
     needsNetworkRestriction,
     httpSocketPath,
@@ -3339,6 +3347,13 @@ export async function wrapCommandWithSandboxLinux(
     return command
   }
 
+  if (infoFd !== undefined && (!Number.isSafeInteger(infoFd) || infoFd < 3)) {
+    throw new Error('infoFd must be an inherited descriptor >= 3')
+  }
+  if (initPath !== undefined && !path.isAbsolute(initPath)) {
+    throw new Error('initPath must be absolute')
+  }
+
   // Mark this sandbox invocation as active. cleanupBwrapMountPoints() will
   // defer file deletion until this (and every other concurrent) invocation
   // has been cleaned up. The matching decrement happens in
@@ -3357,6 +3372,8 @@ export async function wrapCommandWithSandboxLinux(
   )
 
   const bwrapArgs: string[] = ['--new-session', '--die-with-parent']
+  if (infoFd !== undefined) bwrapArgs.push('--info-fd', String(infoFd))
+  if (initPath !== undefined) bwrapArgs.push('--as-pid-1')
   let applySeccompPrefix: string | undefined
 
   try {
@@ -3598,7 +3615,9 @@ export async function wrapCommandWithSandboxLinux(
     if (!shell) {
       throw new Error(`Shell '${shellName}' not found in PATH`)
     }
-    bwrapArgs.push('--', shell, '-c')
+    bwrapArgs.push('--')
+    if (initPath !== undefined) bwrapArgs.push(initPath, '--')
+    bwrapArgs.push(shell, '-c')
 
     // With network restrictions, route the command through buildSandboxCommand
     // so socat starts before seccomp is applied. Otherwise invoke apply-seccomp
