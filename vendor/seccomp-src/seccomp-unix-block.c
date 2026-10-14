@@ -209,8 +209,23 @@ int main(int argc, char *argv[]) {
      * int, so the kernel ignores the upper 32 bits of the register. A plain
      * SCMP_CMP_EQ would compare all 64 bits and miss calls where the upper bits
      * are set. */
+#ifdef SRT_ALLOW_UNIX_STREAM
+    /* Service IPC policy: allow only AF_UNIX SOCK_STREAM. Linux socket type
+     * occupies the low four bits; CLOEXEC/NONBLOCK are independent flags.
+     * Deny all other types, including RAW (which Linux maps to DGRAM).
+     * This is build-time policy, never controlled by the workload environment.
+     * VM sockets, io_uring and the separate namespace filter stay unchanged. */
+    for (unsigned int type = 0; type < 16; type++) {
+        if (type == SOCK_STREAM) continue;
+        rc = seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), SCMP_SYS(socket), 2,
+                              SCMP_A0(SCMP_CMP_MASKED_EQ, 0xffffffff, AF_UNIX),
+                              SCMP_A1(SCMP_CMP_MASKED_EQ, 0xf, type));
+        if (rc < 0) break;
+    }
+#else
     rc = seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), SCMP_SYS(socket), 1,
                           SCMP_A0(SCMP_CMP_MASKED_EQ, 0xffffffff, AF_UNIX));
+#endif
     if (rc < 0) {
         fprintf(stderr, "Error: Failed to add seccomp rule: %s\n", strerror(-rc));
         seccomp_release(ctx);

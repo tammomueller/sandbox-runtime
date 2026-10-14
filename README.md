@@ -1,5 +1,9 @@
 # Anthropic Sandbox Runtime (srt)
 
+> Downstream `linux-service-init` branch: optional Linux service IPC builds are
+> described in [Linux service IPC policy](docs/linux-service-ipc.md). The relaxed
+> socket policy is build-time opt-in and is not an upstream default.
+
 A lightweight sandboxing tool for enforcing filesystem and network restrictions on arbitrary processes at the OS level, without requiring a container.
 
 `srt` uses native OS sandboxing primitives (`sandbox-exec` on macOS, `bubblewrap` on Linux) and proxy-based network filtering. It can be used to sandbox the behaviour of agents, local MCP servers, bash commands and arbitrary processes.

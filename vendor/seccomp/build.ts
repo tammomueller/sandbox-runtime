@@ -23,6 +23,7 @@ const gen = join(OUT, 'seccomp-unix-block')
 run([
   'gcc',
   ...cflags,
+  ...(process.env.SRT_ALLOW_UNIX_STREAM === '1' ? ['-DSRT_ALLOW_UNIX_STREAM'] : []),
   '-o',
   gen,
   join(SRC, 'seccomp-unix-block.c'),
